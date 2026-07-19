@@ -194,8 +194,10 @@ def browser_diagnose() -> None:
         table.add_row("导航 API key", "已配置" if navigation_key else "未配置")
         table.add_row("图像检索", "SerpApi Google Lens")
         table.add_row(
-            "SerpApi key",
-            "已配置" if settings.serpapi_api_key else "未配置",
+            "SerpApi key 池",
+            f"已配置 {len(settings.serpapi_key_pool)} 个"
+            if settings.serpapi_key_pool
+            else "未配置",
         )
         table.add_row("当前页面分类", str(page_kind))
         table.add_row("SQLite", "可写")

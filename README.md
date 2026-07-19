@@ -52,7 +52,7 @@ https://shop-b.tmall.com/
 关键配置：
 
 ```env
-SERPAPI_API_KEY=your-key
+SERPAPI_API_KEYS=key-a,key-b,key-c
 
 MAX_POOL_SIZE=2000
 MAX_QUALIFIED_PRODUCTS_PER_CATEGORY=20
@@ -64,6 +64,8 @@ MAX_DETAIL_PRODUCTS_PER_BATCH=0  # 0 表示本次命令不中途按数量暂停
 DETAIL_PAGE_INTERVAL_SECONDS=30
 PAUSE_AFTER_SCREENING=false
 ```
+
+每次 SerpApi 查询都会随机排列 Key 池并选择一个 Key。若该 Key 鉴权失败、额度耗尽或触发限流，程序会自动尝试池内其他 Key；仅当全部 Key 均不可用时，当前查询才失败。配置中的空项和重复 Key 会自动清理。
 
 淘汰率只使用成功判定作为分母：
 

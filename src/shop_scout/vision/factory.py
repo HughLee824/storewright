@@ -5,10 +5,10 @@ from shop_scout.vision.serpapi import SerpApiVisionProvider
 
 
 def create_vision_provider(settings: Settings) -> WebDetectionProvider:
-    if not settings.serpapi_api_key:
-        raise ShopScoutError("SERPAPI_API_KEY is required for live image search")
+    if not settings.serpapi_key_pool:
+        raise ShopScoutError("SERPAPI_API_KEYS is required for live image search")
     return SerpApiVisionProvider(
-        api_key=settings.serpapi_api_key,
+        api_keys=settings.serpapi_key_pool,
         timeout_seconds=settings.vision_timeout_seconds,
         concurrency=settings.vision_concurrency,
     )

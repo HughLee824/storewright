@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com/v1"
 
-    serpapi_api_key: str | None = None
+    serpapi_api_keys: str | None = None
     vision_timeout_seconds: int = 30
     vision_concurrency: int = 3
 
@@ -65,6 +65,16 @@ class Settings(BaseSettings):
         if self.browser_use_vision_mode == "auto":
             return "auto"
         return self.browser_use_vision_mode == "true"
+
+    @computed_field
+    @property
+    def serpapi_key_pool(self) -> list[str]:
+        keys = [
+            key.strip()
+            for key in (self.serpapi_api_keys or "").split(",")
+            if key.strip()
+        ]
+        return list(dict.fromkeys(keys))
 
     def ensure_directories(self) -> None:
         for path in (
