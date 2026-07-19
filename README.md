@@ -33,6 +33,39 @@ uv --version
 
 ## 安装
 
+### 使用 Agent 自动安装（适合非技术用户）
+
+仓库内置跨 Codex 与 Claude Code 的 `storewright-setup` Skill。若本机已有 Node.js/npm，可以通过公开仓库全局安装；命令会自动检测已安装的 Agent 并让你选择：
+
+```bash
+npx skills add HughLee824/storewright \
+  --skill storewright-setup \
+  --global
+```
+
+同时安装到 Codex 和 Claude Code，并跳过交互确认：
+
+```bash
+npx skills add HughLee824/storewright \
+  --skill storewright-setup \
+  --global \
+  --agent codex \
+  --agent claude-code \
+  --yes
+```
+
+如果已经克隆并在 StoreWright 仓库内打开 Agent，则无需安装：Codex 会从 `.agents/skills/` 自动发现，Claude Code 会从 `.claude/skills/` 自动发现。安装或打开仓库后直接调用：
+
+```text
+# Codex
+使用 $storewright-setup 帮我安装并初始化 Catalog Scout，完成离线验收；需要登录、填写密钥或授权时再提醒我。
+
+# Claude Code
+/storewright-setup 帮我安装并初始化 Catalog Scout，完成离线验收；需要登录、填写密钥或授权时再提醒我。
+```
+
+Agent 会检查环境、安装 CLI、创建独立工作目录并运行离线 Mock 验收，不会读取密钥或未经确认执行真实店铺任务。完整 Skill 源码位于 [`.agents/skills/storewright-setup`](.agents/skills/storewright-setup)。
+
 ### 方式一：从 PyPI 安装（推荐）
 
 `uv tool` 会为 CLI 创建独立环境，不污染当前项目的 Python 依赖：

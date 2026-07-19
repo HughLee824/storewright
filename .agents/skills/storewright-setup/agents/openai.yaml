@@ -1,0 +1,4 @@
+interface:
+  display_name: "StoreWright Setup"
+  short_description: "为非技术用户安装、初始化并验证 StoreWright 工具"
+  default_prompt: "Use $storewright-setup to install and prepare the StoreWright tool I need."
