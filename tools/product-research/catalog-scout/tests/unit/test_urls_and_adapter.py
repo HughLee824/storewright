@@ -67,6 +67,21 @@ def test_taobao_listing_url_and_modern_card_hook() -> None:
     assert "itemCardData" in adapter.browser_listing_extraction_script
 
 
+def test_tmall_listing_thumbnail_is_normalized_to_original_image() -> None:
+    adapter = TaobaoAdapter()
+    thumbnail = (
+        "https://img.alicdn.com/bao/uploaded/item.jpg_180x180.jpg"
+    )
+    assert adapter.normalize_listing_image_url(
+        thumbnail, "https://seller.tmall.com/search.htm"
+    ) == "https://img.alicdn.com/bao/uploaded/item.jpg"
+    external = "https://example.com/item.jpg_180x180.jpg"
+    assert (
+        adapter.normalize_listing_image_url(external, "https://seller.tmall.com/search.htm")
+        == external
+    )
+
+
 def test_detail_evidence_requires_product_specific_structure() -> None:
     adapter = TaobaoAdapter()
     assert adapter.has_product_detail_evidence(

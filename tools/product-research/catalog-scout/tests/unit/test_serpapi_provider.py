@@ -188,18 +188,14 @@ async def test_serpapi_treats_lens_no_results_as_success(tmp_path: Path) -> None
 
 
 def test_serpapi_factory_requires_key() -> None:
-    settings = Settings(
-        _env_file=None,
-        serpapi_api_keys=None,
-    )
+    settings = Settings.model_validate({"serpapi_api_keys": None})
     with pytest.raises(CatalogScoutError, match="SERPAPI_API_KEYS"):
         create_vision_provider(settings)
 
 
 def test_serpapi_settings_clean_and_deduplicate_key_pool() -> None:
-    settings = Settings(
-        _env_file=None,
-        serpapi_api_keys=" first,second, first, ",
+    settings = Settings.model_validate(
+        {"serpapi_api_keys": " first,second, first, "}
     )
 
     assert settings.serpapi_key_pool == ["first", "second"]

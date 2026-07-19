@@ -21,6 +21,10 @@ _ITEM_HOSTS = {"item.taobao.com", "detail.tmall.com", "h5.m.taobao.com", "m.intl
 _IMAGE_HOST_SUFFIXES = ("alicdn.com", "tbcdn.cn", "taobaocdn.com")
 _LOGIN_MARKERS = ("login.taobao.com", "/member/login", "password")
 _VERIFY_MARKERS = ("/punish", "/challenge", "/verify", "captcha", "nc_1_n1z", "滑块")
+_ALICDN_RESIZE_SUFFIX = re.compile(
+    r"_(?:\d{2,4}x\d{2,4}|\d{2,4}x\d{2,4}q\d{1,3})\.(?:jpe?g|png|webp)$",
+    re.I,
+)
 
 
 def extract_item_id(url: str) -> str | None:
@@ -276,6 +280,7 @@ class TaobaoAdapter:
     @property
     def browser_listing_selector(self) -> str:
         return (
+            'dl.item[data-id], '
             'a[href*="item.taobao.com/item.htm"], '
             'a[href*="detail.tmall.com/item.htm"], '
             'a[href*="item.htm?id="], '
@@ -285,6 +290,17 @@ class TaobaoAdapter:
     @property
     def browser_listing_extraction_script(self) -> str:
         return """els => els.map((element, position) => {
+            if (element.matches('dl.item[data-id]')) {
+                const link = element.querySelector(
+                  'a[href*="item.taobao.com/item.htm"], '
+                  + 'a[href*="detail.tmall.com/item.htm"], a[href*="item.htm?id="]');
+                const img = element.querySelector('img');
+                const title = element.querySelector('.item-name');
+                const lazy = img?.dataset.src || img?.dataset.ksLazyload;
+                return link ? {href: link.href, title: title?.innerText || link.title ||
+                  img?.alt || '', image: lazy || img?.dataset.lazyloadSrc || img?.src || '',
+                  position} : null;
+            }
             if (element.tagName === 'A') {
                 const img = element.querySelector('img');
                 const lazy = img?.dataset.src || img?.dataset.ksLazyload;
@@ -299,6 +315,23 @@ class TaobaoAdapter:
             return data ? {href: data.itemUrl, title: data.title || '', image: data.image || '',
               position} : null;
         }).filter(Boolean)"""
+
+    @property
+    def browser_legacy_listing_selector(self) -> str:
+        return "dl.item[data-id]"
+
+    @property
+    def browser_next_page_selector(self) -> str:
+        return "a.ui-page-s-next[href], a.ui-page-next[href]"
+
+    def normalize_listing_image_url(self, image_url: str, base_url: str) -> str:
+        normalized = normalize_http_url(image_url, base_url)
+        host = (urlsplit(normalized).hostname or "").lower()
+        if host.endswith(_IMAGE_HOST_SUFFIXES):
+            parts = urlsplit(normalized)
+            path = _ALICDN_RESIZE_SUFFIX.sub("", parts.path)
+            normalized = urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
+        return normalized
 
     def identify_shop_url(self, input_url: str, display_name: str | None = None) -> ShopIdentity:
         canonical = normalize_http_url(input_url)
@@ -363,7 +396,7 @@ class TaobaoAdapter:
                 image = largest_srcset_url(link["srcset"], base_url) or image
             if image:
                 try:
-                    image = normalize_http_url(image, base_url)
+                    image = self.normalize_listing_image_url(image, base_url)
                 except ValueError:
                     image = None
             result[item_id] = ProductRef(

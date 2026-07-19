@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from playwright.async_api import (
@@ -24,12 +25,18 @@ from storewright_catalog_scout.browser.navigator import BrowserUseNavigator
 from storewright_catalog_scout.browser.page_state import classify_page_state
 from storewright_catalog_scout.config import Settings
 from storewright_catalog_scout.domain.enums import PageKind
-from storewright_catalog_scout.domain.models import ProductDetail, ProductRef, ShopIdentity
+from storewright_catalog_scout.domain.models import (
+    CatalogDiscovery,
+    ProductDetail,
+    ProductRef,
+    ShopIdentity,
+)
 from storewright_catalog_scout.exceptions import (
     CatalogScoutError,
     ManualActionRequiredError,
     RiskCooldownRequiredError,
 )
+from storewright_catalog_scout.extraction.url_normalizer import normalize_http_url
 from storewright_catalog_scout.orchestration.catalog import CatalogBackend
 
 
@@ -77,7 +84,7 @@ class PlaywrightCatalogBackend(CatalogBackend):
         if self.playwright:
             await self.playwright.stop()
 
-    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> list[ProductRef]:
+    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> CatalogDiscovery:
         if self.context is None:
             raise RuntimeError("Playwright catalog is not connected")
         listing_url = self.adapter.product_listing_url(shop.original_url)
@@ -100,7 +107,7 @@ class PlaywrightCatalogBackend(CatalogBackend):
                 )
             direct_ready = (
                 direct_state == PageKind.PRODUCT_LISTING
-                and await page.locator(self.adapter.browser_listing_selector).count() > 0
+                and await self._wait_for_listing(page)
             )
         except ManualActionRequiredError:
             raise
@@ -114,11 +121,14 @@ class PlaywrightCatalogBackend(CatalogBackend):
             if navigation.requires_human or navigation.page_kind in {
                 PageKind.LOGIN,
                 PageKind.VERIFICATION,
+                PageKind.BLOCKED,
             }:
                 raise ManualActionRequiredError(navigation.reason)
             page = await self._active_page(navigation.final_url or shop.original_url)
             if not navigation.success:
                 raise CatalogScoutError(f"NAVIGATION_FAILED: {navigation.reason}")
+            if not await self._wait_for_listing(page):
+                raise CatalogScoutError("NAVIGATION_FAILED: product listing did not become ready")
         initial_state = classify_page_state(page.url, await page.title(), await page.content())
         if initial_state == PageKind.UNKNOWN:
             initial_state = self.adapter.classify_url(page.url)
@@ -127,39 +137,112 @@ class PlaywrightCatalogBackend(CatalogBackend):
         if initial_state != PageKind.PRODUCT_LISTING:
             raise CatalogScoutError("NAVIGATION_FAILED: product listing was not reached")
         seen: dict[str, ProductRef] = {}
-        stable = 0
-        for _ in range(self.settings.max_scroll_rounds):
+        visited_pages: set[str] = set()
+        catalog_complete = False
+        while page.url not in visited_pages:
+            visited_pages.add(page.url)
+            legacy_page = (
+                await page.locator(self.adapter.browser_legacy_listing_selector).count() > 0
+            )
+            stable = 0
+            for _ in range(1 if legacy_page else self.settings.max_scroll_rounds):
+                await self._raise_for_manual_action(page)
+                before = len(seen)
+                await self._collect_visible_products(page, seen)
+                stable = stable + 1 if len(seen) == before else 0
+                if len(seen) >= max_items:
+                    has_next_page = (
+                        legacy_page
+                        and await page.locator(
+                            self.adapter.browser_next_page_selector
+                        ).count()
+                        > 0
+                    )
+                    return CatalogDiscovery(
+                        items=list(seen.values())[:max_items],
+                        catalog_complete=(
+                            legacy_page and not has_next_page and len(seen) == max_items
+                        ),
+                    )
+                if legacy_page or stable >= self.settings.stable_scroll_rounds:
+                    break
+                height = await page.evaluate("window.innerHeight")
+                await page.mouse.wheel(0, int(height * 0.8))
+                await page.wait_for_timeout(self.settings.page_action_delay_ms)
+
+            next_page = page.locator(self.adapter.browser_next_page_selector)
+            if await next_page.count() == 0:
+                catalog_complete = True
+                break
+            next_url = await next_page.first.get_attribute("href")
+            if not next_url:
+                break
+            try:
+                normalized_next = normalize_http_url(next_url, page.url)
+            except ValueError:
+                break
+            if urlsplit(normalized_next).hostname != urlsplit(page.url).hostname:
+                break
+            await page.goto(
+                normalized_next,
+                wait_until="domcontentloaded",
+                timeout=self.settings.navigation_timeout_ms,
+            )
+            if not await self._wait_for_listing(page):
+                raise CatalogScoutError("PAGINATION_FAILED: product listing did not become ready")
+        return CatalogDiscovery(
+            items=list(seen.values())[:max_items], catalog_complete=catalog_complete
+        )
+
+    async def _wait_for_listing(self, page: Page) -> bool:
+        deadline = 10_000
+        elapsed = 0
+        while elapsed <= deadline:
             state = classify_page_state(page.url, await page.title(), await page.content())
             if state in {PageKind.LOGIN, PageKind.VERIFICATION, PageKind.BLOCKED}:
-                screenshot = self.settings.artifacts_dir / "manual-action.png"
-                screenshot.parent.mkdir(parents=True, exist_ok=True)
-                await page.screenshot(path=str(screenshot), full_page=False)
                 raise ManualActionRequiredError(f"Page requires human action: {state}")
-            raw: list[dict[str, Any]] = await page.locator(
-                self.adapter.browser_listing_selector
-            ).evaluate_all(self.adapter.browser_listing_extraction_script)
-            before = len(seen)
-            for item in raw:
+            if await page.locator(self.adapter.browser_listing_selector).count() >= 2:
+                return True
+            await page.wait_for_timeout(250)
+            elapsed += 250
+        return False
+
+    async def _raise_for_manual_action(self, page: Page) -> None:
+        state = classify_page_state(page.url, await page.title(), await page.content())
+        if state not in {PageKind.LOGIN, PageKind.VERIFICATION, PageKind.BLOCKED}:
+            return
+        screenshot = self.settings.artifacts_dir / "manual-action.png"
+        screenshot.parent.mkdir(parents=True, exist_ok=True)
+        await page.screenshot(path=str(screenshot), full_page=False)
+        raise ManualActionRequiredError(f"Page requires human action: {state}")
+
+    async def _collect_visible_products(
+        self, page: Page, seen: dict[str, ProductRef]
+    ) -> None:
+        raw: list[dict[str, Any]] = await page.locator(
+            self.adapter.browser_listing_selector
+        ).evaluate_all(self.adapter.browser_listing_extraction_script)
+        for item in raw:
+            try:
+                url = canonical_product_url(str(item["href"]), page.url)
+            except ValueError:
+                continue
+            item_id = extract_item_id(url)
+            if not item_id or item_id in seen:
+                continue
+            image = str(item.get("image") or "") or None
+            if image:
                 try:
-                    url = canonical_product_url(str(item["href"]), page.url)
+                    image = self.adapter.normalize_listing_image_url(image, page.url)
                 except ValueError:
-                    continue
-                item_id = extract_item_id(url)
-                if item_id and item_id not in seen:
-                    seen[item_id] = ProductRef(
-                        external_item_id=item_id,
-                        canonical_url=url,
-                        title=str(item.get("title") or "") or None,
-                        listing_image_url=str(item.get("image") or "") or None,
-                        source_position=len(seen),
-                    )
-            stable = stable + 1 if len(seen) == before else 0
-            if len(seen) >= max_items or stable >= self.settings.stable_scroll_rounds:
-                break
-            height = await page.evaluate("window.innerHeight")
-            await page.mouse.wheel(0, int(height * 0.8))
-            await page.wait_for_timeout(self.settings.page_action_delay_ms)
-        return list(seen.values())[:max_items]
+                    image = None
+            seen[item_id] = ProductRef(
+                external_item_id=item_id,
+                canonical_url=url,
+                title=str(item.get("title") or "") or None,
+                listing_image_url=image,
+                source_position=len(seen),
+            )
 
     async def extract_detail(self, shop: ShopIdentity, product: ProductRef) -> ProductDetail:
         if self.context is None:

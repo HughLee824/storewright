@@ -53,6 +53,11 @@ class ProductRef(DomainModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class CatalogDiscovery(DomainModel):
+    items: list[ProductRef]
+    catalog_complete: bool
+
+
 class ProductDetail(DomainModel):
     external_item_id: str
     canonical_url: str

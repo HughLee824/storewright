@@ -186,14 +186,16 @@ class RunService:
             await self.repository.set_shop_stage(
                 shop_run.id, ShopRunStatus.DISCOVERING_PRODUCTS
             )
-            discovered = await self.catalog.collect_pool(identity, self.max_pool_size)
-            order_seed, ordered = order_products(discovered, seed, identity.canonical_key)
+            discovery = await self.catalog.collect_pool(identity, self.max_pool_size)
+            order_seed, ordered = order_products(
+                discovery.items, seed, identity.canonical_key
+            )
             product_runs = await self.repository.save_products(
                 shop_run.id,
                 shop_run.shop_id,
                 ordered,
                 order_seed=order_seed,
-                catalog_complete=len(discovered) < self.max_pool_size,
+                catalog_complete=discovery.catalog_complete,
             )
         await self.repository.set_shop_stage(shop_run.id, ShopRunStatus.PROCESSING_PRODUCTS)
         for row in product_runs:

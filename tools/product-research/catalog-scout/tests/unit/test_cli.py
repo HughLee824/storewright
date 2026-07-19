@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from click.utils import strip_ansi
+from click import unstyle
 from typer.testing import CliRunner
 
 from storewright_catalog_scout.cli import (
@@ -37,7 +37,7 @@ def test_live_run_requires_authorization_flag(tmp_path: Path) -> None:
         terminal_width=120,
     )
     assert result.exit_code != 0
-    assert "--confirm-authorized" in strip_ansi(result.output)
+    assert "--confirm-authorized" in unstyle(result.output)
 
 
 def test_shop_csv_only_requires_url_and_deduplicates(tmp_path: Path) -> None:
@@ -67,5 +67,5 @@ def test_init_env_template_is_created_without_overwriting(tmp_path: Path) -> Non
 
 
 def test_production_defaults_have_no_detail_safety_warnings() -> None:
-    settings = Settings(_env_file=None)
+    settings = Settings.model_validate({})
     assert _detail_safety_issues(settings) == []

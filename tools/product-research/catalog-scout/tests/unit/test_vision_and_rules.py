@@ -5,7 +5,12 @@ from uuid import uuid4
 import pytest
 
 from storewright_catalog_scout.domain.enums import ProductVerdict, UrlRelation
-from storewright_catalog_scout.domain.models import ImageArtifact, WebDetectionResult
+from storewright_catalog_scout.domain.models import (
+    ImageArtifact,
+    WebDetectionResult,
+    WebImageMatch,
+    WebPageMatch,
+)
 from storewright_catalog_scout.exceptions import VisionProviderError
 from storewright_catalog_scout.matching.rule_engine import decide_product
 from storewright_catalog_scout.vision.mock import MockVisionProvider
@@ -89,10 +94,10 @@ def test_self_page_full_is_excluded_from_exact(tmp_path: Path) -> None:
         image_sha256="a" * 64,
         full_matching_images=[],
         pages_with_matching_images=[
-            {
-                "url": "https://self/item",
-                "full_matching_images": [{"url": "https://images/m.jpg"}],
-            }
+            WebPageMatch(
+                url="https://self/item",
+                full_matching_images=[WebImageMatch(url="https://images/m.jpg")],
+            )
         ],
         raw_response_path=tmp_path / "x.json",
     )

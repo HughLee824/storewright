@@ -8,8 +8,8 @@ from storewright_catalog_scout.matching.shop_policy import (
 )
 
 
-def context(**overrides) -> ShopContext:
-    values = {
+def context(**overrides: object) -> ShopContext:
+    values: dict[str, object] = {
         "discovered_count": 20,
         "processed_count": 20,
         "search_success_count": 20,
@@ -19,7 +19,7 @@ def context(**overrides) -> ShopContext:
         "error_count": 0,
     }
     values.update(overrides)
-    return ShopContext(**values)
+    return ShopContext.model_validate(values)
 
 
 def test_rate_uses_successful_searches_only() -> None:

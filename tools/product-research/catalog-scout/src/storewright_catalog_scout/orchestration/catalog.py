@@ -6,11 +6,16 @@ from typing import Protocol
 from PIL import Image
 
 from storewright_catalog_scout.adapters.taobao import TaobaoAdapter
-from storewright_catalog_scout.domain.models import ProductDetail, ProductRef, ShopIdentity
+from storewright_catalog_scout.domain.models import (
+    CatalogDiscovery,
+    ProductDetail,
+    ProductRef,
+    ShopIdentity,
+)
 
 
 class CatalogBackend(Protocol):
-    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> list[ProductRef]: ...
+    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> CatalogDiscovery: ...
 
     async def extract_detail(self, shop: ShopIdentity, product: ProductRef) -> ProductDetail: ...
 
@@ -25,7 +30,7 @@ class FixtureCatalogBackend:
         self.scenarios = scenarios or ["empty"] * product_count
         self.adapter = TaobaoAdapter()
 
-    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> list[ProductRef]:
+    async def collect_pool(self, shop: ShopIdentity, max_items: int) -> CatalogDiscovery:
         count = min(self.product_count, max_items)
         prefix = sum(shop.canonical_key.encode()) % 10_000
         cards = "".join(
@@ -36,8 +41,11 @@ class FixtureCatalogBackend:
             f'?scenario={self.scenarios[index % len(self.scenarios)]}"></a>'
             for index in range(count)
         )
-        return self.adapter.collect_product_pool_html(
-            f"<!doctype html><html><body>{cards}</body></html>", shop.canonical_url
+        return CatalogDiscovery(
+            items=self.adapter.collect_product_pool_html(
+                f"<!doctype html><html><body>{cards}</body></html>", shop.canonical_url
+            ),
+            catalog_complete=self.product_count <= max_items,
         )
 
     async def extract_detail(self, shop: ShopIdentity, product: ProductRef) -> ProductDetail:
