@@ -1,0 +1,17 @@
+[tools.catalog-scout]
+path = "tools/product-research/catalog-scout"
+display_name = "StoreWright Catalog Scout"
+tag_prefix = "catalog-scout-v"
+version_file = "pyproject.toml"
+version_pattern = '(?m)^version = "([^"]+)"$'
+version_replacement = 'version = "{version}"'
+changelog_file = "CHANGELOG.md"
+managed_files = ["pyproject.toml", "CHANGELOG.md", "uv.lock"]
+prepare_commands = [
+  ["uv", "lock"],
+]
+check_commands = [
+  ["uv", "run", "--frozen", "ruff", "check", "."],
+  ["uv", "run", "--frozen", "pyright"],
+  ["uv", "run", "--frozen", "pytest", "-q"],
+]

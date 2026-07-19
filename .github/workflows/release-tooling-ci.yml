@@ -1,0 +1,38 @@
+name: Release Tooling CI
+
+on:
+  pull_request:
+    paths:
+      - "release-tools.toml"
+      - "scripts/release.py"
+      - "tests/test_release.py"
+      - "tools/**/scripts/release.py"
+      - ".github/workflows/release-tooling-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "release-tools.toml"
+      - "scripts/release.py"
+      - "tests/test_release.py"
+      - "tools/**/scripts/release.py"
+      - ".github/workflows/release-tooling-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Compile
+        run: python -m py_compile scripts/release.py
+      - name: Test
+        run: python -m unittest tests/test_release.py
+      - name: Inspect registry
+        run: python scripts/release.py --list
