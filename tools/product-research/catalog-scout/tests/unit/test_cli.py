@@ -24,7 +24,11 @@ def test_cli_exposes_required_commands() -> None:
 def test_live_run_requires_authorization_flag(tmp_path: Path) -> None:
     shops = tmp_path / "shops.csv"
     shops.write_text("shop_url\nhttps://authorized.taobao.com/\n")
-    result = CliRunner().invoke(app, ["run", "--shops", str(shops)])
+    result = CliRunner().invoke(
+        app,
+        ["run", "--shops", str(shops)],
+        terminal_width=120,
+    )
     assert result.exit_code != 0
     assert "--confirm-authorized" in result.output
 
