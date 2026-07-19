@@ -168,7 +168,15 @@ def run(
         text=True,
         stdout=subprocess.PIPE if capture else None,
     )
-    return result.stdout.strip() if capture else ""
+    return result.stdout.rstrip("\r\n") if capture else ""
+
+
+def porcelain_paths(output: str) -> set[str]:
+    return {
+        line[3:].split(" -> ")[-1]
+        for line in output.splitlines()
+        if len(line) > 3
+    }
 
 
 def preflight(config: ToolConfig, version: str) -> tuple[dict[Path, str], str]:
@@ -220,10 +228,8 @@ def release(config: ToolConfig, version: str, *, push: bool, dry_run: bool) -> N
             run(command, cwd=config.path)
         for command in config.check_commands:
             run(command, cwd=config.path)
-        status_lines = run(
-            ["git", "status", "--porcelain", "--untracked-files=all"], capture=True
-        ).splitlines()
-        changed = {line[3:].split(" -> ")[-1] for line in status_lines if len(line) > 3}
+        status = run(["git", "status", "--porcelain", "--untracked-files=all"], capture=True)
+        changed = porcelain_paths(status)
         unexpected = changed - allowed
         missing = required - changed
         if unexpected:

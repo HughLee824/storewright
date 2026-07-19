@@ -5,6 +5,8 @@ import sys
 import unittest
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "release.py"
@@ -81,6 +83,25 @@ class ReleaseScriptTests(unittest.TestCase):
                 "0.1.2",
                 date(2026, 7, 20),
             )
+
+    def test_porcelain_status_preserves_first_path_character(self) -> None:
+        output = (
+            " M tools/product-research/catalog-scout/CHANGELOG.md\n"
+            "?? generated.txt\n"
+        )
+        self.assertEqual(
+            release_script.porcelain_paths(output),
+            {
+                "tools/product-research/catalog-scout/CHANGELOG.md",
+                "generated.txt",
+            },
+        )
+
+    def test_captured_command_output_keeps_leading_status_space(self) -> None:
+        completed = SimpleNamespace(stdout=" M tools/file.txt\n")
+        with patch.object(release_script.subprocess, "run", return_value=completed):
+            output = release_script.run(["git", "status"], capture=True)
+        self.assertEqual(output, " M tools/file.txt")
 
 
 if __name__ == "__main__":
