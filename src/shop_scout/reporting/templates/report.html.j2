@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop Scout 报告 {{ run.id }}</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { max-width: 1180px; margin: 2rem auto; padding: 0 1rem; color: #17202a; }
+    .notice { background: #fff7df; border-left: 4px solid #d68910; padding: 1rem; }
+    .shop { border-top: 2px solid #263238; margin-top: 2rem; }
+    .product { display: grid; grid-template-columns: 160px 1fr; gap: 1rem; padding: 1rem 0; border-top: 1px solid #ddd; }
+    img { width: 150px; height: 150px; object-fit: contain; background: #f4f4f4; }
+    dt { font-weight: 700; } dd { margin: 0 0 .4rem; overflow-wrap: anywhere; }
+    code { overflow-wrap: anywhere; } .muted { color: #5f6b72; }
+  </style>
+</head>
+<body>
+  <h1>Shop Scout 图片重复性初筛报告</h1>
+  <p>Run {{ run.id }} · {{ run.status }} · Seed {{ run.seed }} · 生成于 {{ generated_at }}</p>
+  {% if run.last_error %}<p class="notice">暂停/错误原因：{{ run.last_error }}</p>{% endif %}
+  <div class="notice">
+    本报告判断的是“相同主图是否出现在当前检索 provider 的网页索引或本地跨店证据中”，不证明商品、SKU、材质或知识产权相同。
+    “未发现已索引匹配”不表示互联网不存在同款。商品按固定种子排序并执行流式筛选。
+  </div>
+  {% for group in shops %}
+  <section class="shop">
+    <h2>{{ group.shop.shop_name or group.shop.shop_key }} — {{ group.shop.decision }}</h2>
+    <p><a href="{{ group.shop.input_url }}">输入店铺 URL</a></p>
+    <p>{{ group.shop.summary }}（{{ group.shop.reason_code }}）</p>
+    <p class="muted">发现 {{ group.shop.discovered_count }} 件，成功检索 {{ group.shop.search_success_count }} 件，淘汰率 {{ group.shop.rejection_rate }}，合格归档 {{ group.shop.qualified_count }} 件。</p>
+    {% for product in group.products %}
+    <article class="product">
+      <div>{% if product.local_image_path %}<img src="{{ product.local_image_path }}" alt="商品主图">{% endif %}</div>
+      <dl>
+        <dt>商品</dt><dd><a href="{{ product.item_url }}">{{ product.title or product.item_id }}</a></dd>
+        <dt>状态 / 判定</dt><dd>{{ product.status }} / {{ product.verdict }} ({{ product.reason_code }})</dd>
+        <dt>类目 / 详情归档</dt><dd>{{ product.category or "未分类" }} / {{ product.detail_archived }}</dd>
+        <dt>SHA-256</dt><dd><code>{{ product.sha256 }}</code></dd>
+        {% if product.raw_response_path %}<dt>检索原始响应</dt><dd><a href="{{ product.raw_response_path }}">JSON 证据</a></dd>{% endif %}
+        <dt>证据</dt><dd>
+          {% if product.evidence %}<ul>{% for item in product.evidence %}<li>{{ item.kind }} · {{ item.relation }} · <a href="{{ item.url }}">{{ item.url }}</a> — {{ item.reason }}</li>{% endfor %}</ul>{% else %}无外部匹配页面证据{% endif %}
+        </dd>
+        {% if product.error %}<dt>错误</dt><dd>{{ product.error }}</dd>{% endif %}
+      </dl>
+    </article>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</body>
+</html>

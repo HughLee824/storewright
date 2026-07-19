@@ -1,0 +1,1 @@
+"""Interchangeable web detection providers."""
