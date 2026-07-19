@@ -53,16 +53,13 @@ The example URL is for offline validation only. Replace it with explicitly autho
 
 Mock mode does not open a shop, start Chrome, use SerpApi, or require `--confirm-authorized`.
 
-1. Preserve the existing `DETAIL_PAGE_INTERVAL_SECONDS` value.
-2. Temporarily set `DETAIL_PAGE_INTERVAL_SECONDS=0` in `.env` so the fixture does not wait 30 seconds per detail.
-3. Run:
+1. Run:
 
 ```bash
 storewright-scout run --shops shops.csv --seed 20260718 --mock-vision
 ```
 
-4. Require exit code 0 and verify `runtime/artifacts/<run_id>/report.html` exists.
-5. Restore the previous detail interval; use `30` when there was no prior value.
+2. Require exit code 0 and verify `runtime/artifacts/<run_id>/report.html` exists.
 
 Warnings about an unwritable `tldextract` cache do not invalidate a successful run when the bundled snapshot fallback is used and the report exists.
 

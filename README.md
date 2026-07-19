@@ -170,13 +170,7 @@ https://shop-b.tmall.com/
 
 ### 4. 先运行离线 Mock 验收
 
-Mock 模式不访问店铺、不启动 Chrome，也不消耗 API Key，用于确认安装、配置目录、数据库和报告生成正常：
-
-为避免 Mock 数据也使用真实任务默认的 30 秒详情访问间隔，可先在 `.env` 中临时加入：
-
-```env
-DETAIL_PAGE_INTERVAL_SECONDS=0
-```
+Mock 模式不访问店铺、不启动 Chrome、不执行真实详情限速，也不消耗 API Key，用于确认安装、配置目录、数据库和报告生成正常：
 
 ```bash
 storewright-scout run \
@@ -190,8 +184,6 @@ storewright-scout run \
 ```text
 runtime/artifacts/<run_id>/report.html
 ```
-
-Mock 验收完成后，将 `DETAIL_PAGE_INTERVAL_SECONDS` 恢复为 `30`，再执行真实任务。
 
 ### 5. 登录并诊断浏览器
 
@@ -275,11 +267,17 @@ EARLY_STOP_MIN_SEARCHES=10
 EARLY_STOP_CONFIDENCE=0.90
 MAX_SEARCH_ERROR_RATE=0.20
 
-# 详情处理；0 表示本次不按数量暂停
-MAX_DETAIL_PRODUCTS_PER_BATCH=0
-DETAIL_PAGE_INTERVAL_SECONDS=30
-PAUSE_AFTER_SCREENING=false
+# 生产安全默认值：先暂停确认，再分批访问详情
+MAX_DETAIL_PRODUCTS_PER_BATCH=5
+DETAIL_PAGE_INTERVAL_SECONDS=60
+DETAIL_PAGE_INTERVAL_JITTER_SECONDS=15
+DETAIL_PAGE_MAX_PER_HOUR=20
+DETAIL_RISK_COOLDOWN_SECONDS=900
+DETAIL_RISK_MAX_COOLDOWN_SECONDS=21600
+PAUSE_AFTER_SCREENING=true
 ```
+
+`init` 会把以上详情保护参数写入新建的 `.env`，但不会覆盖已有文件。详情访问状态持久化在 `runtime/detail-access-state.json`；同一工作区也不允许同时运行多个 `run`、`resume` 或浏览器登录命令。
 
 SerpApi Key 池会自动清理空项和重复项。单个 Key 出现鉴权失败、额度耗尽或限流时，程序会尝试其他 Key；全部不可用时当前查询才失败。
 

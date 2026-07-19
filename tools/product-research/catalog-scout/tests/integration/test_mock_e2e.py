@@ -260,6 +260,28 @@ async def test_manual_action_during_detail_pauses_entire_run(repository, tmp_pat
     assert provider.call_count == 3
 
 
+async def test_risk_cooldown_during_detail_pauses_without_losing_candidate(
+    repository, tmp_path: Path
+) -> None:
+    class RiskCatalog(FixtureCatalogBackend):
+        async def extract_detail(self, shop, product):
+            from storewright_catalog_scout.exceptions import RiskCooldownRequiredError
+
+            raise RiskCooldownRequiredError("DETAIL_HTTP_429", "2026-07-19T01:00:00+00:00")
+
+    provider = MockVisionProvider()
+    runner = service(repository, tmp_path, provider, product_count=3)
+    runner.catalog = RiskCatalog(product_count=3)
+    run_id = await runner.run(request(tmp_path))
+    run = await repository.get_run(run_id)
+    rows = await repository.report_rows(run_id)
+
+    assert run and run.status == RunStatus.PAUSED
+    assert run.last_error == "DETAIL_HTTP_429"
+    assert rows[0].status == "paused"
+    assert all(item.status == "screened_qualified" for item in rows[0].product_runs)
+
+
 async def test_high_rejection_rate_stops_remaining_searches(repository, tmp_path: Path) -> None:
     provider = MockVisionProvider()
     runner = service(

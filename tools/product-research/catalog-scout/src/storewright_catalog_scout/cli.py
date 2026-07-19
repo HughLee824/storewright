@@ -16,6 +16,10 @@ from storewright_catalog_scout.adapters.base import AdapterRegistry
 from storewright_catalog_scout.adapters.taobao import TaobaoAdapter
 from storewright_catalog_scout.browser.cdp import PlaywrightCatalogBackend
 from storewright_catalog_scout.browser.chrome import ChromeProcessManager
+from storewright_catalog_scout.browser.workspace_lock import (
+    WorkspaceBusyError,
+    acquire_workspace_lock,
+)
 from storewright_catalog_scout.config import Settings
 from storewright_catalog_scout.db.migrations import upgrade_database
 from storewright_catalog_scout.db.repositories import RunRepository
@@ -43,6 +47,15 @@ SERPAPI_API_KEYS=
 
 # Optional DeepSeek navigation fallback
 DEEPSEEK_API_KEY=
+
+# Production-safe detail navigation defaults
+MAX_DETAIL_PRODUCTS_PER_BATCH=5
+DETAIL_PAGE_INTERVAL_SECONDS=60
+DETAIL_PAGE_INTERVAL_JITTER_SECONDS=15
+DETAIL_PAGE_MAX_PER_HOUR=20
+DETAIL_RISK_COOLDOWN_SECONDS=900
+DETAIL_RISK_MAX_COOLDOWN_SECONDS=21600
+PAUSE_AFTER_SCREENING=true
 """
 
 
@@ -81,6 +94,26 @@ def _write_env_template(path: Path) -> bool:
     except FileExistsError:
         return False
     return True
+
+
+def _acquire_workspace_lock(settings: Settings):
+    try:
+        return acquire_workspace_lock(settings.workspace_lock_path)
+    except WorkspaceBusyError as error:
+        raise typer.BadParameter(str(error)) from error
+
+
+def _detail_safety_issues(settings: Settings) -> list[str]:
+    issues: list[str] = []
+    if settings.max_detail_products_per_batch <= 0:
+        issues.append("详情批次无限制")
+    if settings.detail_page_interval_seconds < 60:
+        issues.append("详情间隔低于 60 秒")
+    if settings.detail_page_max_per_hour <= 0 or settings.detail_page_max_per_hour > 20:
+        issues.append("每小时详情上限未启用或高于 20")
+    if not settings.pause_after_screening:
+        issues.append("筛选后不会先暂停")
+    return issues
 
 
 def _service(
@@ -131,6 +164,12 @@ def init_command() -> None:
         console.print(
             "Next: storewright-scout browser login, then storewright-scout browser diagnose"
         )
+        issues = _detail_safety_issues(settings)
+        if issues:
+            console.print(
+                "Warning: existing .env has less conservative detail settings: "
+                f"{'；'.join(issues)}"
+            )
 
     asyncio.run(execute())
 
@@ -144,11 +183,15 @@ def browser_login(
     async def execute() -> None:
         settings = _settings()
         settings.ensure_directories()
+        lock = _acquire_workspace_lock(settings)
         manager = ChromeProcessManager(settings)
-        await manager.start(url)
-        console.print("请在专用 Chrome 窗口手工登录。程序不会读取或打印 Cookie。")
-        await asyncio.to_thread(input, "完成后按 Enter 关闭本次启动的 Chrome：")
-        await manager.stop()
+        try:
+            await manager.start(url)
+            console.print("请在专用 Chrome 窗口手工登录。程序不会读取或打印 Cookie。")
+            await asyncio.to_thread(input, "完成后按 Enter 关闭本次启动的 Chrome：")
+        finally:
+            await manager.stop()
+            lock.release()
 
     asyncio.run(execute())
 
@@ -221,6 +264,11 @@ def browser_diagnose() -> None:
             if settings.serpapi_key_pool
             else "未配置",
         )
+        detail_issues = _detail_safety_issues(settings)
+        table.add_row(
+            "详情访问保护",
+            f"需检查：{'；'.join(detail_issues)}" if detail_issues else "生产安全默认值已启用",
+        )
         table.add_row("当前页面分类", str(page_kind))
         table.add_row("SQLite", "可写")
         console.print(table)
@@ -251,18 +299,20 @@ def run_command(
 
     async def execute() -> None:
         settings.ensure_directories()
-        repository, engine = await _repository(settings)
+        lock = _acquire_workspace_lock(settings)
+        engine: AsyncEngine | None = None
         chrome: ChromeProcessManager | None = None
         live_catalog: PlaywrightCatalogBackend | None = None
-        if mock_vision:
-            catalog = FixtureCatalogBackend(product_count=25)
-        else:
-            chrome = ChromeProcessManager(settings)
-            await chrome.start()
-            live_catalog = PlaywrightCatalogBackend(settings, TaobaoAdapter())
-            await live_catalog.connect()
-            catalog = live_catalog
         try:
+            repository, engine = await _repository(settings)
+            if mock_vision:
+                catalog = FixtureCatalogBackend(product_count=25)
+            else:
+                chrome = ChromeProcessManager(settings)
+                await chrome.start()
+                live_catalog = PlaywrightCatalogBackend(settings, TaobaoAdapter())
+                await live_catalog.connect()
+                catalog = live_catalog
             service = _service(
                 settings,
                 repository,
@@ -280,7 +330,9 @@ def run_command(
                 await live_catalog.close()
             if chrome:
                 await chrome.stop()
-            await engine.dispose()
+            if engine:
+                await engine.dispose()
+            lock.release()
 
     asyncio.run(execute())
 
@@ -294,24 +346,27 @@ def resume_command(
 
     async def execute() -> None:
         settings = _settings()
-        repository, engine = await _repository(settings)
-        run = await repository.get_run(run_id)
-        if run is None:
-            raise typer.BadParameter(f"Run not found: {run_id}")
-        mock = bool(run.config_snapshot_json.get("mock_vision"))
-        if not mock and settings.app_env != "test" and not confirm_authorized:
-            raise typer.BadParameter("Live resume requires --confirm-authorized")
+        settings.ensure_directories()
+        lock = _acquire_workspace_lock(settings)
+        engine: AsyncEngine | None = None
         chrome: ChromeProcessManager | None = None
         live_catalog: PlaywrightCatalogBackend | None = None
-        if mock:
-            catalog = FixtureCatalogBackend(product_count=25)
-        else:
-            chrome = ChromeProcessManager(settings)
-            await chrome.start()
-            live_catalog = PlaywrightCatalogBackend(settings, TaobaoAdapter())
-            await live_catalog.connect()
-            catalog = live_catalog
         try:
+            repository, engine = await _repository(settings)
+            run = await repository.get_run(run_id)
+            if run is None:
+                raise typer.BadParameter(f"Run not found: {run_id}")
+            mock = bool(run.config_snapshot_json.get("mock_vision"))
+            if not mock and settings.app_env != "test" and not confirm_authorized:
+                raise typer.BadParameter("Live resume requires --confirm-authorized")
+            if mock:
+                catalog = FixtureCatalogBackend(product_count=25)
+            else:
+                chrome = ChromeProcessManager(settings)
+                await chrome.start()
+                live_catalog = PlaywrightCatalogBackend(settings, TaobaoAdapter())
+                await live_catalog.connect()
+                catalog = live_catalog
             service = _service(
                 settings,
                 repository,
@@ -328,7 +383,9 @@ def resume_command(
                 await live_catalog.close()
             if chrome:
                 await chrome.stop()
-            await engine.dispose()
+            if engine:
+                await engine.dispose()
+            lock.release()
 
     asyncio.run(execute())
 

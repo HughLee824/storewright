@@ -48,9 +48,15 @@ class Settings(BaseSettings):
     early_stop_confidence: float = 0.90
     max_search_error_rate: float = 0.20
     early_stop_on_reject: bool = True
-    max_detail_products_per_batch: int = 0
-    detail_page_interval_seconds: float = 30.0
-    pause_after_screening: bool = False
+    max_detail_products_per_batch: int = 5
+    detail_page_interval_seconds: float = 60.0
+    detail_page_interval_jitter_seconds: float = 15.0
+    detail_page_max_per_hour: int = 20
+    detail_risk_cooldown_seconds: int = 900
+    detail_risk_max_cooldown_seconds: int = 21_600
+    detail_access_state_path: Path = Path("runtime/detail-access-state.json")
+    workspace_lock_path: Path = Path("runtime/catalog-scout.lock")
+    pause_after_screening: bool = True
 
     @computed_field
     @property

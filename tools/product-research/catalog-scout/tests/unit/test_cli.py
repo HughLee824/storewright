@@ -3,7 +3,13 @@ from pathlib import Path
 from click.utils import strip_ansi
 from typer.testing import CliRunner
 
-from storewright_catalog_scout.cli import _load_shops, _write_env_template, app
+from storewright_catalog_scout.cli import (
+    _detail_safety_issues,
+    _load_shops,
+    _write_env_template,
+    app,
+)
+from storewright_catalog_scout.config import Settings
 
 
 def test_cli_exposes_required_commands() -> None:
@@ -51,7 +57,15 @@ def test_init_env_template_is_created_without_overwriting(tmp_path: Path) -> Non
 
     assert _write_env_template(env_path) is True
     assert "SERPAPI_API_KEYS=" in env_path.read_text()
+    assert "MAX_DETAIL_PRODUCTS_PER_BATCH=5" in env_path.read_text()
+    assert "DETAIL_PAGE_INTERVAL_SECONDS=60" in env_path.read_text()
+    assert "PAUSE_AFTER_SCREENING=true" in env_path.read_text()
 
     env_path.write_text("SERPAPI_API_KEYS=keep-this-key\n")
     assert _write_env_template(env_path) is False
     assert env_path.read_text() == "SERPAPI_API_KEYS=keep-this-key\n"
+
+
+def test_production_defaults_have_no_detail_safety_warnings() -> None:
+    settings = Settings(_env_file=None)
+    assert _detail_safety_issues(settings) == []

@@ -2,6 +2,11 @@
 
 All notable changes to StoreWright Catalog Scout are documented here.
 
+## Unreleased
+
+- Make finite detail batches, screening pauses, 60-second pacing, hourly budgets, and persisted risk cooldowns the production defaults.
+- Prevent concurrent browser-mutating commands in one workspace and fail closed on login, verification, blocking, anomalous responses, or invalid detail pages.
+
 ## 0.1.0 - 2026-07-19
 
 - Add the auditable and resumable product-screening pipeline.

@@ -535,6 +535,22 @@ class TaobaoAdapter:
             },
         )
 
+    def has_product_detail_evidence(self, html: str) -> bool:
+        """Require product-specific structured evidence before accepting a detail page."""
+        if _extract_ice_detail_state(html):
+            return True
+        parser = _ShopHtmlParser("https://item.taobao.com/")
+        parser.feed(html)
+        if parser.meta.get("og:title") and parser.meta.get("og:image"):
+            return True
+        for text in parser.json_ld:
+            try:
+                if _iter_json_products(json.loads(text)):
+                    return True
+            except json.JSONDecodeError:
+                continue
+        return False
+
     def classify_relation(
         self, shop: ShopIdentity, product: ProductRef, candidate_url: str
     ) -> UrlRelation:

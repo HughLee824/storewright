@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import shutil
 from pathlib import Path
@@ -28,7 +27,11 @@ from storewright_catalog_scout.domain.models import (
     WebDetectionResult,
 )
 from storewright_catalog_scout.domain.protocols import SourceAdapter, WebDetectionProvider
-from storewright_catalog_scout.exceptions import ManualActionRequiredError, VisionProviderError
+from storewright_catalog_scout.exceptions import (
+    ManualActionRequiredError,
+    RiskCooldownRequiredError,
+    VisionProviderError,
+)
 from storewright_catalog_scout.extraction.category import detail_category, provisional_category
 from storewright_catalog_scout.images.processor import process_image_bytes, safe_segment
 from storewright_catalog_scout.matching.rule_engine import decide_product
@@ -158,6 +161,16 @@ class RunService:
                     metadata={"reason": str(error)},
                 )
                 return True, "MANUAL_ACTION_REQUIRED"
+            except RiskCooldownRequiredError as error:
+                await self.repository.pause_shop(shop_run.id, error.reason)
+                await self.repository.add_event(
+                    run_id,
+                    "risk_cooldown_required",
+                    "Detail navigation paused by the persisted safety policy",
+                    shop_run_id=shop_run.id,
+                    metadata={"reason": error.reason, "retry_at": error.retry_at},
+                )
+                return True, error.reason
         return False, None
 
     async def _process_shop(
@@ -280,8 +293,6 @@ class RunService:
                     metadata={"processed_in_batch": detail_count},
                 )
                 return "DETAIL_BATCH_LIMIT_REACHED"
-            if detail_count:
-                await asyncio.sleep(self.detail_page_interval_seconds)
             await self._archive_screened_product(run_id, shop_run, row, identity, adapter)
             detail_count += 1
 
@@ -430,6 +441,13 @@ class RunService:
         try:
             detail = await self.catalog.extract_detail(identity, product)
         except ManualActionRequiredError as error:
+            await self.repository.set_product_stage(
+                product_run.id,
+                ProductRunStatus.SCREENED_QUALIFIED,
+                str(error),
+            )
+            raise
+        except RiskCooldownRequiredError as error:
             await self.repository.set_product_stage(
                 product_run.id,
                 ProductRunStatus.SCREENED_QUALIFIED,

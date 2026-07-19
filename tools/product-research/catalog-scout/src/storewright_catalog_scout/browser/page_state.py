@@ -10,6 +10,7 @@ LOGIN_URL_MARKERS = (
     "/login.htm",
 )
 VERIFY_URL_MARKERS = ("/punish", "/challenge", "/verify", "captcha")
+LOGIN_TITLE_MARKERS = ("登录淘宝", "淘宝登录", "请登录")
 VERIFY_TEXT_MARKERS = ("安全验证", "请完成验证", "滑块验证", "账号异常")
 BLOCKED_TEXT_MARKERS = ("访问被拒绝", "操作过于频繁", "流量异常", "稍后再试")
 
@@ -17,7 +18,9 @@ BLOCKED_TEXT_MARKERS = ("访问被拒绝", "操作过于频繁", "流量异常",
 def classify_page_state(url: str, title: str, html: str) -> PageKind:
     lowered_url = url.lower()
     lowered_html = html.lower()
-    if any(marker in lowered_url for marker in LOGIN_URL_MARKERS) or (
+    if any(marker in lowered_url for marker in LOGIN_URL_MARKERS) or any(
+        marker in title for marker in LOGIN_TITLE_MARKERS
+    ) or (
         'type="password"' in lowered_html and any(word in title for word in ("登录", "Login"))
     ):
         return PageKind.LOGIN

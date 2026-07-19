@@ -3,19 +3,33 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+from playwright.async_api import (
+    Browser,
+    BrowserContext,
+    Page,
+    Playwright,
+    async_playwright,
+)
+from playwright.async_api import (
+    TimeoutError as PlaywrightTimeoutError,
+)
 
 from storewright_catalog_scout.adapters.taobao import (
     TaobaoAdapter,
     canonical_product_url,
     extract_item_id,
 )
+from storewright_catalog_scout.browser.detail_access import DetailAccessPolicy
 from storewright_catalog_scout.browser.navigator import BrowserUseNavigator
 from storewright_catalog_scout.browser.page_state import classify_page_state
 from storewright_catalog_scout.config import Settings
 from storewright_catalog_scout.domain.enums import PageKind
 from storewright_catalog_scout.domain.models import ProductDetail, ProductRef, ShopIdentity
-from storewright_catalog_scout.exceptions import CatalogScoutError, ManualActionRequiredError
+from storewright_catalog_scout.exceptions import (
+    CatalogScoutError,
+    ManualActionRequiredError,
+    RiskCooldownRequiredError,
+)
 from storewright_catalog_scout.orchestration.catalog import CatalogBackend
 
 
@@ -29,6 +43,14 @@ class PlaywrightCatalogBackend(CatalogBackend):
         self.context: BrowserContext | None = None
         self.detail_page: Page | None = None
         self.image_client: httpx.AsyncClient | None = None
+        self.detail_access = DetailAccessPolicy(
+            settings.detail_access_state_path,
+            interval_seconds=settings.detail_page_interval_seconds,
+            jitter_seconds=settings.detail_page_interval_jitter_seconds,
+            max_per_hour=settings.detail_page_max_per_hour,
+            risk_cooldown_seconds=settings.detail_risk_cooldown_seconds,
+            max_risk_cooldown_seconds=settings.detail_risk_max_cooldown_seconds,
+        )
 
     async def connect(self) -> None:
         self.playwright = await async_playwright().start()
@@ -144,19 +166,40 @@ class PlaywrightCatalogBackend(CatalogBackend):
             raise RuntimeError("Playwright catalog is not connected")
         if self.detail_page is None:
             self.detail_page = await self.context.new_page()
-        await self.detail_page.goto(
-            product.canonical_url,
-            wait_until="domcontentloaded",
-            timeout=self.settings.navigation_timeout_ms,
-        )
-        state = classify_page_state(
-            self.detail_page.url, await self.detail_page.title(), await self.detail_page.content()
-        )
+        await self.detail_access.wait_before_request()
+        self.detail_access.record_request()
+        try:
+            response = await self.detail_page.goto(
+                product.canonical_url,
+                wait_until="domcontentloaded",
+                timeout=self.settings.navigation_timeout_ms,
+            )
+        except PlaywrightTimeoutError as error:
+            retry_at = self.detail_access.record_risk("DETAIL_NAVIGATION_TIMEOUT")
+            raise RiskCooldownRequiredError("DETAIL_NAVIGATION_TIMEOUT", retry_at) from error
+        if response is None or response.status in {403, 429} or response.status >= 500:
+            status = response.status if response else "NO_RESPONSE"
+            retry_at = self.detail_access.record_risk(f"DETAIL_HTTP_{status}")
+            await self._save_risk_screenshot()
+            raise RiskCooldownRequiredError(f"DETAIL_HTTP_{status}", retry_at)
+        html = await self.detail_page.content()
+        state = classify_page_state(self.detail_page.url, await self.detail_page.title(), html)
         if state in {PageKind.LOGIN, PageKind.VERIFICATION, PageKind.BLOCKED}:
+            self.detail_access.record_risk(f"DETAIL_PAGE_{state.value.upper()}")
+            await self._save_risk_screenshot()
             raise ManualActionRequiredError(f"Detail page requires human action: {state}")
-        return self.adapter.extract_product_detail_html(
-            await self.detail_page.content(), product, self.detail_page.url
-        )
+        final_item_id = extract_item_id(self.detail_page.url)
+        if (
+            state != PageKind.PRODUCT_DETAIL
+            or final_item_id != product.external_item_id
+            or not self.adapter.has_product_detail_evidence(html)
+        ):
+            retry_at = self.detail_access.record_risk("DETAIL_PAGE_UNEXPECTED")
+            await self._save_risk_screenshot()
+            raise RiskCooldownRequiredError("DETAIL_PAGE_UNEXPECTED", retry_at)
+        detail = self.adapter.extract_product_detail_html(html, product, self.detail_page.url)
+        self.detail_access.record_success()
+        return detail
 
     async def fetch_image_url(self, image_url: str, referer_url: str) -> tuple[bytes, str]:
         if self.image_client is None:
@@ -180,3 +223,14 @@ class PlaywrightCatalogBackend(CatalogBackend):
             if target_host and target_host in page.url.lower():
                 return page
         raise RuntimeError(f"Active listing page not found for {final_url}")
+
+    async def _save_risk_screenshot(self) -> None:
+        if self.detail_page is None:
+            return
+        screenshot = self.settings.artifacts_dir / "manual-action.png"
+        screenshot.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            await self.detail_page.screenshot(path=str(screenshot), full_page=False)
+        except Exception:
+            # Evidence capture must never suppress the protective pause.
+            return

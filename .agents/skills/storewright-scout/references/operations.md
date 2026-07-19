@@ -57,17 +57,14 @@ Do not put shop names, keys, credentials, notes, or unrelated columns into the i
 
 Use Mock only for installation/workflow validation. It does not visit shops, start Chrome, call SerpApi, or require live authorization.
 
-1. Preserve the current `DETAIL_PAGE_INTERVAL_SECONDS` setting without exposing the rest of `.env`.
-2. Temporarily set it to `0` so fixture details do not wait 30 seconds each.
-3. Run:
+1. Run:
 
 ```bash
 storewright-scout run --shops <shops.csv> --seed 20260718 --mock-vision
 ```
 
-4. Capture the printed `run_id` and report path.
-5. Require exit code 0 and verify `runtime/artifacts/<run_id>/report.html` plus `summary.json` exist.
-6. Restore the previous interval; use `30` when no prior value existed.
+2. Capture the printed `run_id` and report path.
+3. Require exit code 0 and verify `runtime/artifacts/<run_id>/report.html` plus `summary.json` exist.
 
 Do not present Mock product results as real research findings.
 

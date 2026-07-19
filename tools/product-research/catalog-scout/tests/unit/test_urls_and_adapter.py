@@ -67,6 +67,15 @@ def test_taobao_listing_url_and_modern_card_hook() -> None:
     assert "itemCardData" in adapter.browser_listing_extraction_script
 
 
+def test_detail_evidence_requires_product_specific_structure() -> None:
+    adapter = TaobaoAdapter()
+    assert adapter.has_product_detail_evidence(
+        '<meta property="og:title" content="Item">'
+        '<meta property="og:image" content="https://img.alicdn.com/item.jpg">'
+    )
+    assert not adapter.has_product_detail_evidence("<html><body>temporary page</body></html>")
+
+
 def test_listing_fixture_deduplicates_and_reads_lazy_images() -> None:
     adapter = TaobaoAdapter()
     html = (FIXTURES / "listing" / "lazy_listing.html").read_text()

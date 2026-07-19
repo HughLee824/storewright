@@ -42,7 +42,7 @@ cd catalog-scout-workspace
 storewright-scout init
 ```
 
-`init` 会创建当前工作目录下的 `.env`、SQLite 数据库和运行目录，不会覆盖已有 `.env`。填写至少一个 SerpApi Key 后即可运行。升级使用：
+`init` 会创建当前工作目录下的 `.env`、SQLite 数据库和运行目录，不会覆盖已有 `.env`。新建的 `.env` 包含生产安全的详情访问默认值；填写至少一个 SerpApi Key 后即可运行。升级使用：
 
 ```bash
 uv tool upgrade storewright-catalog-scout
@@ -73,10 +73,16 @@ SHOP_REJECT_RATE_THRESHOLD=0.60
 EARLY_STOP_MIN_SEARCHES=10
 EARLY_STOP_CONFIDENCE=0.90
 MAX_SEARCH_ERROR_RATE=0.20
-MAX_DETAIL_PRODUCTS_PER_BATCH=0  # 0 表示本次命令不中途按数量暂停
-DETAIL_PAGE_INTERVAL_SECONDS=30
-PAUSE_AFTER_SCREENING=false
+MAX_DETAIL_PRODUCTS_PER_BATCH=5
+DETAIL_PAGE_INTERVAL_SECONDS=60
+DETAIL_PAGE_INTERVAL_JITTER_SECONDS=15
+DETAIL_PAGE_MAX_PER_HOUR=20
+DETAIL_RISK_COOLDOWN_SECONDS=900
+DETAIL_RISK_MAX_COOLDOWN_SECONDS=21600
+PAUSE_AFTER_SCREENING=true
 ```
+
+真实详情访问使用工作区级持久化节流和风险冷却。首个请求、恢复任务和跨店铺请求都遵守间隔；403、429、导航超时、登录/验证或异常详情页会暂停任务。同一工作区只允许一个 `run`、`resume` 或浏览器登录命令操作专用 Profile。
 
 每次 SerpApi 查询都会随机排列 Key 池并选择一个 Key。若该 Key 鉴权失败、额度耗尽或触发限流，程序会自动尝试池内其他 Key；仅当全部 Key 均不可用时，当前查询才失败。配置中的空项和重复 Key 会自动清理。
 
