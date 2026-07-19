@@ -1,5 +1,9 @@
 # StoreWright Catalog Scout
 
+[![PyPI](https://img.shields.io/pypi/v/storewright-catalog-scout)](https://pypi.org/project/storewright-catalog-scout/)
+[![Python](https://img.shields.io/pypi/pyversions/storewright-catalog-scout)](https://pypi.org/project/storewright-catalog-scout/)
+[![License](https://img.shields.io/pypi/l/storewright-catalog-scout)](https://opensource.org/license/mit)
+
 StoreWright Catalog Scout 是面向已授权店铺数据的商品图片筛选与本地归档工具。它先用商品列表图调用 SerpApi Google Lens 精确匹配，再决定是否读取并保存完整商品详情；按类目最多保留指定数量的合格商品，并在店铺淘汰率显著过高时提前停止，减少 API、页面访问和存储消耗。
 
 淘宝/天猫是首个数据源。编排、图片检索、判定、数据库和报告均通过通用接口实现，不把淘宝写死为唯一来源。
@@ -27,10 +31,12 @@ shops.csv
 
 ## 安装
 
-需要本机 Chrome。推荐使用 `uv tool` 安装；`uv` 会为命令创建隔离环境，并在需要时安装兼容的 Python。
+包已发布到 [PyPI](https://pypi.org/project/storewright-catalog-scout/)。需要本机 Chrome。推荐使用 `uv tool` 安装；`uv` 会为命令创建隔离环境，并在需要时安装兼容的 Python。
 
 ```bash
 uv tool install storewright-catalog-scout
+storewright-scout --help
+
 mkdir catalog-scout-workspace
 cd catalog-scout-workspace
 storewright-scout init
