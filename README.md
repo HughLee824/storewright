@@ -35,11 +35,19 @@ uv --version
 
 ### 使用 Agent 自动安装（适合非技术用户）
 
-仓库内置跨 Codex 与 Claude Code 的 `storewright-setup` Skill。若本机已有 Node.js/npm，可以通过公开仓库全局安装；命令会自动检测已安装的 Agent 并让你选择：
+仓库内置两个跨 Codex 与 Claude Code 的 Skill：
+
+| Skill | 用途 |
+| --- | --- |
+| `storewright-setup` | 安装、升级、初始化、环境诊断和离线验收 |
+| `storewright-scout` | 准备店铺清单、运行或恢复筛选、生成报告并解释结果 |
+
+若本机已有 Node.js/npm，可以通过公开仓库全局安装；命令会自动检测已安装的 Agent 并让你选择：
 
 ```bash
 npx skills add HughLee824/storewright \
   --skill storewright-setup \
+  --skill storewright-scout \
   --global
 ```
 
@@ -48,6 +56,7 @@ npx skills add HughLee824/storewright \
 ```bash
 npx skills add HughLee824/storewright \
   --skill storewright-setup \
+  --skill storewright-scout \
   --global \
   --agent codex \
   --agent claude-code \
@@ -60,11 +69,15 @@ npx skills add HughLee824/storewright \
 # Codex
 使用 $storewright-setup 帮我安装并初始化 Catalog Scout，完成离线验收；需要登录、填写密钥或授权时再提醒我。
 
+使用 $storewright-scout 帮我筛选这些已授权店铺；我不懂命令行，请你完成可以自动完成的操作，并用简单中文解释报告。
+
 # Claude Code
 /storewright-setup 帮我安装并初始化 Catalog Scout，完成离线验收；需要登录、填写密钥或授权时再提醒我。
+
+/storewright-scout 帮我继续上次暂停的筛选任务，并告诉我哪些结果需要人工复核。
 ```
 
-Agent 会检查环境、安装 CLI、创建独立工作目录并运行离线 Mock 验收，不会读取密钥或未经确认执行真实店铺任务。完整 Skill 源码位于 [`.agents/skills/storewright-setup`](.agents/skills/storewright-setup)。
+Agent 会完成环境检查、输入准备、CLI 操作和报告解释，不会读取密钥或未经确认执行真实店铺任务。完整 Skill 源码位于 [`.agents/skills/`](.agents/skills)。
 
 ### 方式一：从 PyPI 安装（推荐）
 

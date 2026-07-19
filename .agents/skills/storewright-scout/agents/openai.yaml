@@ -1,0 +1,4 @@
+interface:
+  display_name: "StoreWright Scout"
+  short_description: "让非技术用户通过自然语言运行和管理 Catalog Scout"
+  default_prompt: "Use $storewright-scout to run or continue a Catalog Scout task and explain the results."
