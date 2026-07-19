@@ -1,8 +1,8 @@
+from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import shop_scout.db.models  # noqa: F401
-from alembic import command
 from shop_scout.db.base import Base
 
 

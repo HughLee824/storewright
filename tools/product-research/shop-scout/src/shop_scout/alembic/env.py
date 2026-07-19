@@ -1,7 +1,7 @@
+from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import shop_scout.db.models  # noqa: F401
-from alembic import context
 from shop_scout.db.base import Base
 
 config = context.config

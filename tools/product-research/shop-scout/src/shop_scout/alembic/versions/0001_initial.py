@@ -6,8 +6,9 @@ Revises:
 
 from collections.abc import Sequence
 
-import shop_scout.db.models  # noqa: F401
 from alembic import op
+
+import shop_scout.db.models  # noqa: F401
 from shop_scout.db.base import Base
 
 revision: str = "0001"
