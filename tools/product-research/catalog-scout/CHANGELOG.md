@@ -4,7 +4,7 @@ All notable changes to StoreWright Catalog Scout are documented here.
 
 ## Unreleased
 
-- Add a guarded, repository-level multi-tool release script with independent tool versions, tags, checks, and optional atomic publishing.
+- Add a guarded, repository-level multi-tool release script with independent tool versions, automatic patch/minor/major bumps, tags, checks, and optional atomic publishing.
 
 ## 0.1.1 - 2026-07-19
 

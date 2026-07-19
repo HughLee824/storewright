@@ -27,6 +27,12 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertEqual(config.path.name, "catalog-scout")
         self.assertEqual(config.version_file.name, "pyproject.toml")
 
+    def test_relative_version_bumps_are_resolved_from_current_manifest(self) -> None:
+        self.assertEqual(release_script.resolve_version("0.1.1", "patch"), "0.1.2")
+        self.assertEqual(release_script.resolve_version("0.1.1", "minor"), "0.2.0")
+        self.assertEqual(release_script.resolve_version("0.1.1", "major"), "1.0.0")
+        self.assertEqual(release_script.resolve_version("0.1.1", "0.3.0"), "0.3.0")
+
     def test_version_updater_supports_other_tool_manifests(self) -> None:
         tool = release_script.tool_config_from_mapping(
             "future-tool",

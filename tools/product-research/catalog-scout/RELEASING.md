@@ -24,14 +24,17 @@ From the repository root, use the shared multi-tool release entry point:
 
 ```bash
 ./scripts/release.py --list
-./scripts/release.py catalog-scout 0.1.2 --dry-run
-./scripts/release.py catalog-scout 0.1.2
+./scripts/release.py catalog-scout patch --dry-run
+./scripts/release.py catalog-scout patch
 ```
+
+Use `patch`, `minor`, or `major` to calculate the next version from the tool's registered version
+file. An explicit version such as `0.2.0` remains supported when a specific target is required.
 
 The previous Catalog Scout-local form remains available as a compatibility wrapper:
 
 ```bash
-./scripts/release.py 0.1.2
+./scripts/release.py patch
 ```
 
 The script updates `pyproject.toml`, `uv.lock`, and `CHANGELOG.md`; runs Ruff, Pyright, and

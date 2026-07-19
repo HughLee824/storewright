@@ -14,6 +14,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "release-tools.toml"
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+BUMP_LEVELS = {"patch", "minor", "major"}
 
 
 class ReleaseError(RuntimeError):
@@ -40,6 +41,18 @@ def parse_version(value: str) -> tuple[int, int, int]:
         raise ReleaseError("version must use X.Y.Z format")
     major, minor, patch = (int(part) for part in value.split("."))
     return major, minor, patch
+
+
+def resolve_version(current: str, requested: str) -> str:
+    if requested not in BUMP_LEVELS:
+        parse_version(requested)
+        return requested
+    major, minor, patch = parse_version(current)
+    if requested == "major":
+        return f"{major + 1}.0.0"
+    if requested == "minor":
+        return f"{major}.{minor + 1}.0"
+    return f"{major}.{minor}.{patch + 1}"
 
 
 def _string(value: object, field: str) -> str:
@@ -179,7 +192,7 @@ def porcelain_paths(output: str) -> set[str]:
     }
 
 
-def preflight(config: ToolConfig, version: str) -> tuple[dict[Path, str], str]:
+def preflight(config: ToolConfig, requested: str) -> tuple[dict[Path, str], str, str]:
     originals: dict[Path, str] = {}
     for path in config.managed_files:
         try:
@@ -187,6 +200,7 @@ def preflight(config: ToolConfig, version: str) -> tuple[dict[Path, str], str]:
         except OSError as error:
             raise ReleaseError(f"cannot read managed file: {path}") from error
     old_version = current_version(config, originals[config.version_file])
+    version = resolve_version(old_version, requested)
     if parse_version(version) <= parse_version(old_version):
         raise ReleaseError(f"new version must be greater than current version {old_version}")
     if run(["git", "branch", "--show-current"], capture=True) != "main":
@@ -197,11 +211,11 @@ def preflight(config: ToolConfig, version: str) -> tuple[dict[Path, str], str]:
     if run(["git", "tag", "--list", tag], capture=True):
         raise ReleaseError(f"tag already exists: {tag}")
     update_changelog(originals[config.changelog_file], version, date.today())
-    return originals, old_version
+    return originals, old_version, version
 
 
-def release(config: ToolConfig, version: str, *, push: bool, dry_run: bool) -> None:
-    originals, old_version = preflight(config, version)
+def release(config: ToolConfig, requested: str, *, push: bool, dry_run: bool) -> None:
+    originals, old_version, version = preflight(config, requested)
     tag = f"{config.tag_prefix}{version}"
     print(f"{config.display_name} {old_version} -> {version}")
     print(f"Tag: {tag}")
@@ -262,7 +276,11 @@ def release(config: ToolConfig, version: str, *, push: bool, dry_run: bool) -> N
 def main() -> int:
     parser = argparse.ArgumentParser(description="Release a StoreWright tool")
     parser.add_argument("tool", nargs="?", help="tool name from release-tools.toml")
-    parser.add_argument("version", nargs="?", help="new semantic version in X.Y.Z format")
+    parser.add_argument(
+        "version",
+        nargs="?",
+        help="patch, minor, major, or an explicit semantic version in X.Y.Z format",
+    )
     parser.add_argument("--list", action="store_true", help="list registered tools")
     parser.add_argument(
         "--push", action="store_true", help="atomically push main and the release tag to origin"
