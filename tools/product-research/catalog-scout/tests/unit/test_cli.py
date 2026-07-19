@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from storewright_catalog_scout.cli import _load_shops, _write_env_template, app
@@ -30,7 +31,7 @@ def test_live_run_requires_authorization_flag(tmp_path: Path) -> None:
         terminal_width=120,
     )
     assert result.exit_code != 0
-    assert "--confirm-authorized" in result.output
+    assert "--confirm-authorized" in strip_ansi(result.output)
 
 
 def test_shop_csv_only_requires_url_and_deduplicates(tmp_path: Path) -> None:
