@@ -2,7 +2,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from storewright_catalog_scout.cli import _load_shops, app
+from storewright_catalog_scout.cli import _load_shops, _write_env_template, app
 
 
 def test_cli_exposes_required_commands() -> None:
@@ -39,3 +39,14 @@ def test_shop_csv_only_requires_url_and_deduplicates(tmp_path: Path) -> None:
         "https://one.taobao.com/",
         "https://two.tmall.com/",
     ]
+
+
+def test_init_env_template_is_created_without_overwriting(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+
+    assert _write_env_template(env_path) is True
+    assert "SERPAPI_API_KEYS=" in env_path.read_text()
+
+    env_path.write_text("SERPAPI_API_KEYS=keep-this-key\n")
+    assert _write_env_template(env_path) is False
+    assert env_path.read_text() == "SERPAPI_API_KEYS=keep-this-key\n"

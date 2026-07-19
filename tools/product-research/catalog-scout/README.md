@@ -27,12 +27,19 @@ shops.csv
 
 ## 安装
 
-需要 Python 3.12、`uv` 和本机 Chrome。
+需要本机 Chrome。推荐使用 `uv tool` 安装；`uv` 会为命令创建隔离环境，并在需要时安装兼容的 Python。
 
 ```bash
-uv sync
-cp .env.example .env
-uv run storewright-scout init
+uv tool install storewright-catalog-scout
+mkdir catalog-scout-workspace
+cd catalog-scout-workspace
+storewright-scout init
+```
+
+`init` 会创建当前工作目录下的 `.env`、SQLite 数据库和运行目录，不会覆盖已有 `.env`。填写至少一个 SerpApi Key 后即可运行。升级使用：
+
+```bash
+uv tool upgrade storewright-catalog-scout
 ```
 
 ## 输入 CSV
@@ -92,15 +99,15 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 先在专用 Chrome Profile 手工登录并诊断：
 
 ```bash
-uv run storewright-scout browser login
-uv run storewright-scout browser diagnose
+storewright-scout browser login
+storewright-scout browser diagnose
 ```
 
 完全离线 Mock E2E：
 
 ```bash
-uv run storewright-scout run \
-  --shops examples/shops.example.csv \
+storewright-scout run \
+  --shops shops.csv \
   --seed 20260718 \
   --mock-vision \
   --confirm-authorized
@@ -109,7 +116,7 @@ uv run storewright-scout run \
 真实运行：
 
 ```bash
-uv run storewright-scout run \
+storewright-scout run \
   --shops shops.csv \
   --seed 20260718 \
   --confirm-authorized
@@ -118,10 +125,10 @@ uv run storewright-scout run \
 恢复与报告：
 
 ```bash
-uv run storewright-scout resume --run-id <uuid> --confirm-authorized
-uv run storewright-scout report --run-id <uuid>
-uv run storewright-scout rebuild-archives --run-id <uuid>
-uv run storewright-scout review list --run-id <uuid>
+storewright-scout resume --run-id <uuid> --confirm-authorized
+storewright-scout report --run-id <uuid>
+storewright-scout rebuild-archives --run-id <uuid>
+storewright-scout review list --run-id <uuid>
 ```
 
 `rebuild-archives` 只读取已保存的 HTML，离线补齐结构化价格、属性和 SKU，重建扁平图片目录，不启动浏览器或调用 SerpApi。
@@ -181,6 +188,14 @@ runtime/artifacts/<run_id>/
 
 Serp provider、规则引擎、类目配额、店铺止损、SQLite 与报告无需依赖淘宝。
 
+## 源码开发
+
+```bash
+git clone https://github.com/HughLee824/storewright.git
+cd storewright/tools/product-research/catalog-scout
+uv sync
+```
+
 ## 质量检查
 
 ```bash
@@ -188,6 +203,8 @@ uv run ruff check .
 uv run pyright
 uv run pytest --cov=storewright_catalog_scout
 ```
+
+发布流程见 [`RELEASING.md`](https://github.com/HughLee824/storewright/blob/main/tools/product-research/catalog-scout/RELEASING.md)，版本变化见 [`CHANGELOG.md`](https://github.com/HughLee824/storewright/blob/main/tools/product-research/catalog-scout/CHANGELOG.md)。本项目使用 [MIT License](https://github.com/HughLee824/storewright/blob/main/tools/product-research/catalog-scout/LICENSE)。
 
 ## 已知限制
 

@@ -3,6 +3,25 @@ name = "storewright-catalog-scout"
 version = "0.1.0"
 description = "Auditable, resumable external image-match screening for authorized shops"
 readme = "README.md"
+authors = [
+  { name = "Hugh Lee" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+  "ecommerce",
+  "google-lens",
+  "product-research",
+  "serpapi",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+]
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "aiosqlite>=0.20,<1",
@@ -24,6 +43,12 @@ dependencies = [
 
 [project.scripts]
 storewright-scout = "storewright_catalog_scout.cli:app"
+
+[project.urls]
+Changelog = "https://github.com/HughLee824/storewright/releases"
+Homepage = "https://github.com/HughLee824/storewright"
+Issues = "https://github.com/HughLee824/storewright/issues"
+Repository = "https://github.com/HughLee824/storewright"
 
 [dependency-groups]
 dev = [

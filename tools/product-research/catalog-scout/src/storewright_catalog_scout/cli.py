@@ -38,6 +38,13 @@ app.add_typer(browser_app, name="browser")
 app.add_typer(review_app, name="review")
 console = Console()
 
+DEFAULT_ENV_TEMPLATE = """# Required for live image search (comma-separated keys)
+SERPAPI_API_KEYS=
+
+# Optional DeepSeek navigation fallback
+DEEPSEEK_API_KEY=
+"""
+
 
 def _settings() -> Settings:
     configure_logging()
@@ -65,6 +72,15 @@ def _load_shops(path: Path) -> list[ShopInput]:
             seen.add(url)
             shops.append(ShopInput(shop_url=url))
     return shops
+
+
+def _write_env_template(path: Path) -> bool:
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(DEFAULT_ENV_TEMPLATE)
+    except FileExistsError:
+        return False
+    return True
 
 
 def _service(
@@ -103,10 +119,12 @@ def init_command() -> None:
     """Create runtime directories and initialize the SQLite schema."""
 
     async def execute() -> None:
+        env_created = _write_env_template(Path(".env"))
         settings = _settings()
         settings.ensure_directories()
         await asyncio.to_thread(upgrade_database, settings.database_url)
         manager = ChromeProcessManager(settings)
+        console.print("Configuration: created .env" if env_created else "Configuration: kept .env")
         console.print(f"Database initialized: {settings.database_url}")
         chrome = manager.discover()
         console.print(f"Chrome: {chrome or 'not found (set CHROME_EXECUTABLE)'}")

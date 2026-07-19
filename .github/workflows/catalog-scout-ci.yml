@@ -1,0 +1,45 @@
+name: Catalog Scout CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/product-research/catalog-scout/**"
+      - ".github/workflows/catalog-scout-*.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/product-research/catalog-scout/**"
+      - ".github/workflows/catalog-scout-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+          - "3.13"
+    defaults:
+      run:
+        working-directory: tools/product-research/catalog-scout
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+          working-directory: tools/product-research/catalog-scout
+      - name: Lint
+        run: uv run --frozen ruff check .
+      - name: Type check
+        run: uv run --frozen pyright
+      - name: Test
+        run: uv run --frozen pytest -q
